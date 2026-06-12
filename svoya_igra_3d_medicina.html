@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Своя Игра — 3D-технологии в медицине</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Exo+2:wght@400;700;900&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Exo 2', sans-serif; background: #0a0a2e; color: #fff; min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 10%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 50%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(2px 2px at 45% 35%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 90%, rgba(255,255,255,0.3) 0%, transparent 100%);
+  }
+  .wrapper { position: relative; z-index: 1; padding: 20px; }
+
+  .header { text-align: center; margin-bottom: 24px; }
+  .header h1 {
+    font-family: 'Russo One', sans-serif; font-size: clamp(20px, 3.5vw, 38px);
+    background: linear-gradient(90deg, #00d4ff, #ffffff, #00ff99);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .header p { color: #88aaff; font-size: 14px; margin-top: 6px; }
+
+  /* SCOREBOARD */
+  .scoreboard { display: flex; justify-content: center; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+  .team-card {
+    background: linear-gradient(135deg, #1a1a5e, #0d2060); border: 2px solid #2244cc;
+    border-radius: 14px; padding: 12px 20px; min-width: 148px; text-align: center;
+    cursor: pointer; transition: all 0.3s; position: relative;
+  }
+  .team-card:hover { border-color: #4488ff; transform: translateY(-2px); }
+  .team-card.active { border-color: #00ff99; box-shadow: 0 0 20px rgba(0,255,153,0.4); }
+  .team-card .team-name input {
+    background: transparent; border: none; border-bottom: 1px solid #4466aa;
+    color: #fff; font-family: 'Exo 2', sans-serif; font-size: 13px; width: 110px; text-align: center; outline: none;
+  }
+  .team-card .score { font-family: 'Russo One', sans-serif; font-size: 32px; color: #00ff99; margin: 4px 0; }
+  .team-card .active-label { font-size: 10px; color: #00ff99; opacity: 0; transition: opacity 0.3s; }
+  .team-card.active .active-label { opacity: 1; }
+  .team-delete { position: absolute; top: 6px; right: 8px; font-size: 15px; color: #444; cursor: pointer; transition: color 0.2s; line-height: 1; }
+  .team-delete:hover { color: #ff5555; }
+  .add-team-btn {
+    background: rgba(255,255,255,0.04); border: 2px dashed #334; border-radius: 14px;
+    padding: 12px 20px; min-width: 90px; cursor: pointer; color: #556; font-size: 28px;
+    transition: all 0.3s; display: flex; align-items: center; justify-content: center;
+  }
+  .add-team-btn:hover { border-color: #4488ff; color: #4488ff; }
+
+  /* BOARD */
+  .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 900px; margin: 0 auto; }
+  .category-header {
+    background: linear-gradient(135deg, #1a3a8a, #0d1f6e); border: 2px solid #2255cc;
+    border-radius: 12px; padding: 14px 8px; text-align: center;
+    font-size: clamp(12px, 1.5vw, 16px); font-weight: 700; color: #aaccff;
+    text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.3;
+    min-height: 72px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px;
+  }
+  .cat-icon { font-size: 24px; }
+  .cell {
+    background: linear-gradient(135deg, #1a2080, #0d1560); border: 2px solid #2244bb;
+    border-radius: 12px; min-height: 88px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden; flex-direction: column; gap: 4px;
+  }
+  .cell:hover { border-color: #4499ff; transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,100,255,0.3); }
+  .cell .points { font-family: 'Russo One', sans-serif; font-size: clamp(24px, 3.5vw, 42px); color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.5); }
+  .cell .img-badge { font-size: 15px; opacity: 0.6; }
+  .cell.used { background: rgba(255,255,255,0.02); border-color: #1a1a3a; cursor: default; transform: none !important; box-shadow: none !important; }
+  .cell.used .points, .cell.used .img-badge { opacity: 0; }
+
+  /* MODAL */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,10,0.87); z-index: 100; backdrop-filter: blur(6px); align-items: center; justify-content: center; padding: 20px; }
+  .overlay.open { display: flex; }
+  .modal {
+    background: linear-gradient(160deg, #0d1a60, #051030); border: 2px solid #3366ff;
+    border-radius: 24px; max-width: 680px; width: 100%; padding: 34px 38px;
+    position: relative; box-shadow: 0 0 60px rgba(50,100,255,0.4); animation: modalIn 0.3s ease;
+    max-height: 92vh; overflow-y: auto;
+  }
+  @keyframes modalIn { from { transform: scale(0.85) translateY(-20px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+  .modal-close { position: absolute; top: 16px; right: 20px; font-size: 24px; cursor: pointer; color: #556; transition: color 0.2s; }
+  .modal-close:hover { color: #fff; }
+  .modal-category { font-size: 12px; color: #88aaff; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+  .modal-points { font-family: 'Russo One', sans-serif; font-size: 48px; color: #ffd700; text-shadow: 0 0 30px rgba(255,215,0,0.5); margin-bottom: 16px; line-height: 1; }
+
+  /* PHOTO */
+  .photo-wrap {
+    width: 100%; border-radius: 14px; overflow: hidden; margin-bottom: 16px;
+    display: none; border: 1px solid rgba(255,255,255,0.1);
+    background: #050d1a; position: relative; min-height: 60px;
+  }
+  .photo-wrap.visible { display: block; }
+  .photo-wrap img { display: block; width: 100%; max-height: 280px; object-fit: cover; }
+  .photo-wrap .photo-src {
+    position: absolute; bottom: 6px; right: 8px;
+    font-size: 10px; color: rgba(255,255,255,0.35); font-style: italic;
+  }
+  .photo-loading {
+    text-align: center; padding: 24px; color: #446;
+    font-size: 13px; display: none;
+  }
+  .photo-loading.visible { display: block; }
+
+  .modal-question { font-size: clamp(16px, 2.2vw, 22px); font-weight: 700; line-height: 1.5; color: #fff; margin-bottom: 18px; }
+  .hint-btn {
+    display: none; margin-bottom: 12px;
+    background: rgba(255,200,0,0.08); border: 1.5px solid rgba(255,200,0,0.35);
+    border-radius: 10px; padding: 8px 16px; cursor: pointer;
+    color: #ffcc44; font-size: 13px; font-family: 'Exo 2', sans-serif;
+    transition: all 0.2s; width: fit-content;
+  }
+  .hint-btn:hover { background: rgba(255,200,0,0.16); border-color: #ffcc44; }
+  .hint-btn.shown { display: none !important; }
+  .modal-hint { font-size: 13px; color: #ffcc44; background: rgba(255,200,0,0.07); border: 1px solid rgba(255,200,0,0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-style: italic; display: none; }
+  .modal-hint.visible { display: block; }
+
+  .answer-box { background: rgba(0,255,150,0.08); border: 1px solid rgba(0,255,150,0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; display: none; animation: fadeIn 0.4s ease; }
+  .answer-box.visible { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .answer-label { font-size: 10px; color: #00cc77; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+  .answer-text { font-size: 17px; font-weight: 700; color: #00ff99; line-height: 1.4; }
+
+  .team-select-row { margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .team-select-row label { font-size: 12px; color: #88aaff; }
+  .team-mini { padding: 6px 14px; border-radius: 8px; border: 1.5px solid #334; background: rgba(255,255,255,0.05); color: #aaa; cursor: pointer; font-size: 13px; transition: all 0.2s; font-family: 'Exo 2', sans-serif; }
+  .team-mini.selected { border-color: #00ff99; color: #00ff99; background: rgba(0,255,153,0.1); }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { flex: 1; min-width: 110px; padding: 13px 14px; border-radius: 12px; border: none; font-family: 'Exo 2', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.25s; text-transform: uppercase; letter-spacing: 1px; }
+  .btn-show { background: linear-gradient(135deg, #2255cc, #1133aa); color: #fff; border: 2px solid #4477ff; }
+  .btn-show:hover { filter: brightness(1.2); transform: translateY(-1px); }
+  .btn-correct { background: linear-gradient(135deg, #00aa55, #007733); color: #fff; border: 2px solid #00ff88; }
+  .btn-correct:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .btn-wrong { background: linear-gradient(135deg, #aa2222, #771111); color: #fff; border: 2px solid #ff4444; }
+  .btn-wrong:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .btn-skip { background: rgba(255,255,255,0.04); color: #888; border: 2px solid #333; }
+  .btn-skip:hover { background: rgba(255,255,255,0.1); color: #aaa; }
+
+  .footer { text-align: center; margin-top: 22px; color: #334; font-size: 12px; }
+  .confetti-wrap { position: fixed; inset: 0; pointer-events: none; z-index: 200; display: none; }
+  .confetti-wrap.active { display: block; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>⚕️ Своя Игра — 3D-технологии в медицине</h1>
+    <p>10 класс · Биохим · 4 темы по 4 вопроса · 📷 — вопрос с фото</p>
+  </div>
+  <div class="scoreboard" id="scoreboard"></div>
+  <div class="board" id="board"></div>
+  <div class="footer">Нажмите на ячейку → команда отвечает → Верно / Неверно</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal()">✕</span>
+    <div class="modal-category" id="mCat"></div>
+    <div class="modal-points" id="mPoints"></div>
+
+    <div class="photo-wrap" id="photoWrap">
+      <img id="photoImg" src="" alt="фото к вопросу" onload="onPhotoLoad()" onerror="onPhotoError()">
+      <span class="photo-src">© Wikimedia Commons</span>
+    </div>
+    <div class="photo-loading" id="photoLoading">⏳ Загрузка фото…</div>
+
+    <div class="modal-question" id="mQuestion"></div>
+    <button class="hint-btn" id="hintBtn" onclick="showHint()">💡 Подсказка</button>
+    <div class="modal-hint" id="mHint"></div>
+
+    <div class="answer-box" id="mAnswer">
+      <div class="answer-label">Ответ</div>
+      <div class="answer-text" id="mAnswerText"></div>
+    </div>
+
+    <div class="team-select-row" id="teamSelectRow"></div>
+    <div class="btn-row">
+      <button class="btn btn-show" id="btnShow" onclick="showAnswer()">👁 Ответ</button>
+      <button class="btn btn-correct" id="btnCorrect" onclick="markResult(true)">✓ Верно</button>
+      <button class="btn btn-wrong" id="btnWrong" onclick="markResult(false)">✗ Неверно</button>
+      <button class="btn btn-skip" id="btnSkip" onclick="closeModal()">Пропустить</button>
+    </div>
+  </div>
+</div>
+
+<div class="confetti-wrap" id="confettiWrap"></div>
+
+<script>
+// ============================================================
+//  Фото берутся с Wikimedia Commons через Special:FilePath
+//  Браузер автоматически следует редиректу к реальному файлу
+// ============================================================
+const WM = 'https://commons.wikimedia.org/wiki/Special:FilePath/';
+
+const PHOTOS = {
+  skull_plate: WM + '3-D_Printed_Skull_Plate_(5255)_(18492487005).jpg',
+  wrex:        WM + 'WREX_exoskeleton_at_the_3D%2C_printing_the_future_exhibition_at_the_Science_Museum%2C_London.JPG',
+  vr_nasa:     WM + 'ISS-50_Shane_Kimbrough_uses_a_virtual_reality_headset_in_the_Destiny_lab.jpg',
+  mri_brain:   WM + 'MRI_Brain_DWI_Axial_(16).jpg'
+};
+
+// ============================================================
+//  ДАННЫЕ ИГРЫ — 10 класс, биохим
+// ============================================================
+const categories = [
+  {
+    name: "Биопечать\nи биоматериалы",
+    icon: "🧬",
+    questions: [
+      {
+        pts: 100,
+        q: "Что такое 3D-биопечать в медицине? Чем она отличается от обычной печати на принтере?",
+        a: "3D-биопечать — послойное создание живых тканей с помощью специального принтера. Вместо чернил используют «биочернила» — гель с живыми клетками. Главное отличие: в биочернилах находятся настоящие живые клетки, которые после печати продолжают жить и формируют ткань. Цель — создавать органы для пересадки прямо в лаборатории",
+        hint: "Обычный принтер печатает пластиком или чернилами. А что вместо них у биопринтера?"
+      },
+      {
+        pts: 200,
+        q: "Почему стволовые клетки — лучший выбор для биопечати органов, чем обычные взрослые клетки?",
+        a: "Стволовые клетки могут превращаться в любой тип клеток (мышечные, нервные, костные) — это называется плюрипотентность. Если взять собственные стволовые клетки пациента, организм не отвергнет напечатанный орган — не будет реакции отторжения. Обычные взрослые клетки уже «специализированы» и не умеют перестраиваться",
+        hint: "Стволовая клетка — как «ствол» дерева, из которого вырастают разные ветви. Что это значит для организма?"
+      },
+      {
+        pts: 300,
+        q: "📷 На фото — имплантат для черепа, напечатанный на 3D-принтере. Как вы думаете, почему нельзя сделать такой имплантат из обычного пластика или дерева?",
+        a: "Материал должен быть биосовместимым — не вызывать воспаления, аллергии и отторжения. Дерево и обычный пластик токсичны для организма и разрушаются во влажной среде. Используют специальные материалы: титан, гидроксиапатит (похож на состав кости) или медицинский пластик PEEK — они «невидимы» для иммунной системы",
+        hint: "Вспомните: что происходит, если в тело попадает заноза? А если материал похож на саму кость — будет ли реакция?",
+        photo: 'skull_plate'
+      },
+      {
+        pts: 400,
+        q: "Учёные напечатали маленькое сердце из клеток пациента. Но оно погибло через несколько дней. Почему, и что нужно добавить, чтобы оно выжило?",
+        a: "Проблема — отсутствие кровеносных сосудов (васкуляризация). Все клетки в живой ткани должны быть не дальше 0,2 мм от капилляра — иначе им не хватает кислорода и питания. В напечатанном органе нет сосудов → клетки внутри задыхаются. Чтобы орган выжил, нужно напечатать внутри него целую сосудистую сеть — это главная нерешённая задача биопечати",
+        hint: "Почему мясо внутри большого куска темнее, чем снаружи? Та же проблема — нет доступа кислорода"
+      }
+    ]
+  },
+  {
+    name: "Протезы и\nнейроинтерфейсы",
+    icon: "🦾",
+    questions: [
+      {
+        pts: 100,
+        q: "Чем активный протез руки отличается от пассивного (косметического)? Как человек управляет активным протезом?",
+        a: "Пассивный протез — только внешний вид, он не двигается. Активный протез оснащён моторами и датчиками: он считывает слабые электрические сигналы мышц культи и двигает пальцами и кистью. Человек напрягает оставшиеся мышцы — протез сжимает или разжимает руку, как настоящая",
+        hint: "Пассивный — только красиво выглядит. Активный — реально работает. Откуда протез берёт «команды»?"
+      },
+      {
+        pts: 200,
+        q: "📷 На фото — лёгкий экзоскелет руки для ребёнка, напечатанный на 3D-принтере. Почему его делают из пластика, а не из металла?",
+        a: "Детям с мышечной атрофией не хватает сил даже поднять руку. Металлический экзоскелет весил бы несколько килограммов — слишком тяжело для ослабленных мышц. Пластик из 3D-принтера весит менее килограмма и достаточно прочен. Ещё плюс: его можно напечатать точно по размеру конкретного ребёнка — как индивидуальный пошив, только быстро и дёшево",
+        hint: "Зачем нужен лёгкий материал? Подумайте, какую нагрузку уже несут ослабленные мышцы",
+        photo: 'wrex'
+      },
+      {
+        pts: 300,
+        q: "Что такое нейроинтерфейс (BCI)? Объясните, как парализованный человек может управлять курсором на экране с его помощью.",
+        a: "BCI (Brain-Computer Interface) — устройство, считывающее электрические сигналы мозга и переводящее их в команды для компьютера. Пример: пациент думает о движении рукой → электроды на голове фиксируют активность нейронов → компьютер распознаёт «команду» → курсор двигается. Мозг управляет устройством напрямую, минуя повреждённые мышцы и нервы",
+        hint: "Мозг постоянно посылает электрические сигналы. Как их «прочитать» снаружи и превратить в команду?"
+      },
+      {
+        pts: 400,
+        q: "Почему титановый зубной имплантат через несколько месяцев держится крепче, чем сразу после установки? Что происходит на границе металл–кость?",
+        a: "Происходит оссеоинтеграция — кость буквально врастает в поверхность имплантата. На поверхности титана образуется тонкий слой оксида, к которому прилипают белки крови. Затем клетки-остеобласты начинают строить новую костную ткань прямо на металле. Через 3–6 месяцев имплантат и кость соединены без зазора. Шероховатая поверхность, созданная 3D-печатью, ускоряет этот процесс — больше площадь контакта",
+        hint: "Как стена оплетается плющом — вот так кость «оплетает» имплантат. Почему шероховатая поверхность лучше гладкой?"
+      }
+    ]
+  },
+  {
+    name: "VR/AR\nв медицине",
+    icon: "🥽",
+    questions: [
+      {
+        pts: 100,
+        q: "В каких ситуациях в медицине используют виртуальную реальность (VR)? Назовите не менее трёх применений.",
+        a: "Обучение хирургов — тренировка операций на виртуальных пациентах без риска. Реабилитация после инсульта — тренировка движений в игровой форме. Лечение фобий — постепенное привыкание к пугающей ситуации (страх высоты, пауков). Обезболивание при болезненных процедурах (перевязки ожогов). Лечение фантомных болей у людей с ампутацией",
+        hint: "Подумайте: обучение, лечение, реабилитация — в каких из них VR может заменить или дополнить реальный мир?"
+      },
+      {
+        pts: 200,
+        q: "📷 На фото — человек в VR-шлеме. Когда вы увлечены интересным фильмом, боль от небольшой царапины кажется меньше. Как VR использует этот же механизм для обезболивания пациентов?",
+        a: "Когда мозг полностью занят обработкой образов виртуального мира, у него «не хватает ресурсов» на полноценную обработку болевых сигналов — это конкуренция за внимание. Особенно эффективно при болезненных перевязках ожогов: пациент погружён в виртуальный мир и воспринимает боль значительно слабее — без лекарств и их побочных эффектов",
+        hint: "Когда вы увлечены игрой, замечаете ли вы боль? Мозг не может одновременно в полную силу обрабатывать всё",
+        photo: 'vr_nasa'
+      },
+      {
+        pts: 300,
+        q: "Студент-хирург тренируется на VR-симуляторе, но симулятор не передаёт ощущение «сопротивления» ткани. Будет ли он хорошо подготовлен к реальной операции? Почему?",
+        a: "Нет, не полностью. В реальной операции хирург чувствует, насколько ткань плотная, как натягивается нить шва, когда нож «прошёл» сквозь слой. Это называется гаптическая (тактильная) обратная связь. Без неё мозг запомнит только визуальный навык, но не «чувство рук» — и при первой настоящей операции хирург окажется не готов к реальным ощущениям",
+        hint: "Можно ли научиться завязывать галстук, только наблюдая за видео и никогда не трогая ткань руками?"
+      },
+      {
+        pts: 400,
+        q: "Хирург оперирует опухоль мозга. Снаружи опухоль не видна и почти неотличима от здоровой ткани. Как AR-технология помогает хирургу «видеть» опухоль и не задеть важные нервы?",
+        a: "До операции МРТ создаёт 3D-карту мозга с отмеченными опухолью, сосудами, зонами речи и движения. В операционной система отслеживает положение головы пациента и инструментов. AR-очки накладывают эту 3D-карту прямо на то, что видит хирург — как «рентгеновское зрение». Хирург видит невидимое и режет точно по границе опухоли, не задевая здоровые зоны",
+        hint: "Представьте навигатор в машине — он показывает дорогу, которую вы не можете увидеть. AR в операционной делает то же самое"
+      }
+    ]
+  },
+  {
+    name: "Молекулярная\nвизуализация",
+    icon: "🔬",
+    questions: [
+      {
+        pts: 100,
+        q: "Чем МРТ лучше рентгена для исследования мозга? Почему нейрохирурги выбирают МРТ, а не рентген?",
+        a: "Рентген хорошо показывает плотные ткани — кости. Мозг состоит из мягких тканей с высоким содержанием воды — рентген их почти не различает. МРТ использует магнитное поле и реагирует именно на воду в тканях, поэтому прекрасно видит разные участки мозга, опухоли, очаги воспаления. И главное — нет вредного ионизирующего излучения",
+        hint: "Из чего в основном состоит мозг? Рентген видит кости. МРТ видит..."
+      },
+      {
+        pts: 200,
+        q: "Почему при подозрении на инсульт врач срочно отправляет пациента на МРТ, а не просто осматривает его?",
+        a: "При инсульте часть мозга перестаёт получать кровь, и клетки начинают гибнуть уже через несколько минут. Снаружи это не видно, симптомы бывают похожи на другие болезни. МРТ за несколько минут показывает точно, где произошло поражение и какого оно размера. Это определяет, какое лечение нужно срочно — ошибка может стоить жизни или привести к инвалидности",
+        hint: "Болезнь внутри мозга не видна глазу. Как её точно «увидеть» за минуты?"
+      },
+      {
+        pts: 300,
+        q: "📷 На фото — МРТ-снимок мозга. Светлое пятно — область с нарушенным кровоснабжением. Как вы думаете, почему учёным важно знать точную 3D-форму белка — молекулы размером в миллионную долю миллиметра?",
+        a: "Форма белка определяет его функцию — «ключ подходит только к своему замку». Лекарство работает, потому что его молекула точно входит в «карман» белка-мишени и блокирует его. Зная 3D-форму болезнетворного белка, учёные могут спроектировать лекарство, которое к нему идеально подойдёт. Без знания формы — это поиск ключа вслепую среди миллионов вариантов",
+        hint: "Почему ключ подходит только к своему замку? Та же логика у молекулы лекарства и белка",
+        photo: 'mri_brain'
+      },
+      {
+        pts: 400,
+        q: "В 2020 году ИИ AlphaFold решил задачу, над которой учёные бились 50 лет — предсказание формы белка. Почему это важно для медицины, если мы эти белки даже не видим глазом?",
+        a: "Все болезни — это сбой в работе белков. Раковые клетки вырабатывают белки, которых нет в здоровых. Вирусы атакуют нас с помощью своих белков. Чтобы создать лекарство, нужно знать точную форму «вражеского» белка. Раньше определение формы одного белка занимало годы работы. AlphaFold делает это за секунды по одной лишь последовательности аминокислот — это ускоряет создание лекарств в сотни раз",
+        hint: "Форма белка = его функция. AlphaFold предсказывает форму. Зачем это нужно при разработке лекарства?"
+      }
+    ]
+  }
+];
+
+// ============================================================
+//  STATE
+// ============================================================
+let teams = [{ name: "Команда 1", score: 0 }, { name: "Команда 2", score: 0 }];
+let activeTeam = 0;
+let currentCell = null;
+
+// ============================================================
+//  BOARD
+// ============================================================
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  categories.forEach(cat => {
+    const h = document.createElement('div');
+    h.className = 'category-header';
+    h.innerHTML = `<span class="cat-icon">${cat.icon}</span><span>${cat.name.replace('\n','<br>')}</span>`;
+    board.appendChild(h);
+  });
+  // Итерируем по строкам (вопросам), затем по столбцам (категориям)
+  // → каждая категория — отдельный столбец, 100→400 сверху вниз
+  for (let qi = 0; qi < 4; qi++) {
+    for (let ci = 0; ci < categories.length; ci++) {
+      const q = categories[ci].questions[qi];
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = `cell-${ci}-${qi}`;
+      cell.innerHTML = `<span class="points">${q.pts}</span>${q.photo ? '<span class="img-badge">📷</span>' : ''}`;
+      cell.onclick = () => openQuestion(ci, qi);
+      board.appendChild(cell);
+    }
+  }
+}
+
+// ============================================================
+//  SCOREBOARD
+// ============================================================
+function renderScoreboard() {
+  const sb = document.getElementById('scoreboard');
+  sb.innerHTML = '';
+  teams.forEach((team, i) => {
+    const card = document.createElement('div');
+    card.className = 'team-card' + (i === activeTeam ? ' active' : '');
+    card.onclick = () => { activeTeam = i; renderScoreboard(); };
+    card.innerHTML = `
+      ${teams.length > 1 ? `<span class="team-delete" onclick="deleteTeam(event,${i})">✕</span>` : ''}
+      <div class="team-name"><input value="${team.name}" onchange="teams[${i}].name=this.value;renderScoreboard()" onclick="event.stopPropagation()"></div>
+      <div class="score">${team.score}</div>
+      <div class="active-label">▶ Отвечает</div>`;
+    sb.appendChild(card);
+  });
+  if (teams.length < 4) {
+    const btn = document.createElement('div');
+    btn.className = 'add-team-btn'; btn.title = 'Добавить команду'; btn.textContent = '+';
+    btn.onclick = () => { teams.push({ name: `Команда ${teams.length + 1}`, score: 0 }); renderScoreboard(); };
+    sb.appendChild(btn);
+  }
+}
+
+function deleteTeam(e, idx) {
+  e.stopPropagation();
+  if (teams.length <= 1) return;
+  teams.splice(idx, 1);
+  if (activeTeam >= teams.length) activeTeam = teams.length - 1;
+  renderScoreboard();
+}
+
+// ============================================================
+//  QUESTION MODAL
+// ============================================================
+function openQuestion(ci, qi) {
+  const cellEl = document.getElementById(`cell-${ci}-${qi}`);
+  if (cellEl.classList.contains('used')) return;
+  currentCell = { ci, qi };
+
+  const q = categories[ci].questions[qi];
+  const cat = categories[ci];
+
+  document.getElementById('mCat').textContent = cat.icon + ' ' + cat.name.replace('\n', ' ');
+  document.getElementById('mPoints').textContent = q.pts;
+  document.getElementById('mQuestion').textContent = q.q;
+  document.getElementById('mAnswer').classList.remove('visible');
+  document.getElementById('mAnswerText').textContent = q.a;
+
+  // Photo
+  const wrap = document.getElementById('photoWrap');
+  const img  = document.getElementById('photoImg');
+  const loading = document.getElementById('photoLoading');
+  if (q.photo && PHOTOS[q.photo]) {
+    wrap.classList.remove('visible');
+    loading.classList.add('visible');
+    img.src = PHOTOS[q.photo];
+  } else {
+    wrap.classList.remove('visible');
+    loading.classList.remove('visible');
+    img.src = '';
+  }
+
+  // Hint — скрыта, показывается кнопкой
+  const hintEl = document.getElementById('mHint');
+  const hintBtn = document.getElementById('hintBtn');
+  hintEl.classList.remove('visible');
+  if (q.hint) {
+    hintEl.textContent = q.hint;
+    hintBtn.style.display = 'block';
+    hintBtn.classList.remove('shown');
+  } else {
+    hintBtn.style.display = 'none';
+  }
+
+  // Buttons
+  document.getElementById('btnShow').style.display = 'block';
+  document.getElementById('btnCorrect').style.display = 'block';
+  document.getElementById('btnWrong').style.display = 'block';
+  document.getElementById('btnSkip').style.display = 'block';
+
+  renderTeamSelect();
+  document.getElementById('overlay').classList.add('open');
+}
+
+function onPhotoLoad() {
+  document.getElementById('photoLoading').classList.remove('visible');
+  document.getElementById('photoWrap').classList.add('visible');
+}
+function onPhotoError() {
+  document.getElementById('photoLoading').classList.remove('visible');
+  // Фото не загрузилось — показываем вопрос без фото, игра продолжается
+}
+
+function renderTeamSelect() {
+  const row = document.getElementById('teamSelectRow');
+  row.innerHTML = '<label>Команда:</label>';
+  teams.forEach((team, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'team-mini' + (i === activeTeam ? ' selected' : '');
+    btn.textContent = team.name;
+    btn.onclick = () => { activeTeam = i; renderTeamSelect(); renderScoreboard(); };
+    row.appendChild(btn);
+  });
+}
+
+function showHint() {
+  document.getElementById('mHint').classList.add('visible');
+  document.getElementById('hintBtn').classList.add('shown');
+}
+
+function showAnswer() {
+  document.getElementById('mAnswer').classList.add('visible');
+  document.getElementById('btnShow').style.display = 'none';
+  document.getElementById('btnCorrect').style.display = 'block';
+  document.getElementById('btnWrong').style.display = 'block';
+  document.getElementById('btnSkip').style.display = 'block';
+}
+
+function markResult(correct) {
+  const pts = categories[currentCell.ci].questions[currentCell.qi].pts;
+  teams[activeTeam].score += correct ? pts : -pts;
+
+  const cellEl = document.getElementById(`cell-${currentCell.ci}-${currentCell.qi}`);
+  cellEl.classList.add('used');
+  cellEl.style.background = correct
+    ? 'linear-gradient(135deg, rgba(0,180,80,0.15), rgba(0,100,50,0.08))'
+    : 'linear-gradient(135deg, rgba(180,0,0,0.12), rgba(100,0,0,0.06))';
+
+  if (correct) celebrate();
+  renderScoreboard();
+  closeModal();
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  currentCell = null;
+}
+
+document.getElementById('overlay').addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
+
+// ============================================================
+//  CONFETTI
+// ============================================================
+function celebrate() {
+  const wrap = document.getElementById('confettiWrap');
+  wrap.innerHTML = ''; wrap.classList.add('active');
+  const colors = ['#ffd700','#00ff99','#4488ff','#ff66aa','#ff9900','#00ddff'];
+  for (let i = 0; i < 55; i++) {
+    const d = document.createElement('div');
+    const size = Math.random() * 10 + 6;
+    d.style.cssText = `position:absolute;left:${Math.random()*100}%;top:-10px;width:${size}px;height:${size}px;background:${colors[Math.floor(Math.random()*colors.length)]};border-radius:${Math.random()>.5?'50%':'2px'};animation:fall ${Math.random()*1.5+1}s ${Math.random()*0.5}s linear forwards;`;
+    wrap.appendChild(d);
+  }
+  const s = document.getElementById('cStyle') || document.createElement('style');
+  s.id = 'cStyle';
+  s.textContent = '@keyframes fall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}';
+  document.head.appendChild(s);
+  setTimeout(() => { wrap.classList.remove('active'); wrap.innerHTML=''; }, 2600);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+renderBoard();
+renderScoreboard();
+</script>
+</body>
+</html>
